@@ -19,21 +19,25 @@ const LoginSignup = () => {
     password: "",
   });
 
-  // SEPARATE MESSAGES
   const [loginMsg, setLoginMsg] = useState("");
   const [signupMsg, setSignupMsg] = useState("");
-  // EMAIL VERIFICATION STATES
   const [otpPopup, setOtpPopup] = useState(false);
   const [otp, setOtp] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState("");
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [forgotPopup, setForgotPopup] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotOtp, setForgotOtp] = useState("");
+  const [resetStage, setResetStage] = useState(1);
+  const [newPassword, setNewPassword] = useState("");
 
-  /* Utility: auto clear message */
   const clearMessage = (setter) => {
     setTimeout(() => setter(""), 3000);
   };
 
-  /* ================= LOGIN ================= */
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginMsg("");
@@ -50,16 +54,10 @@ const LoginSignup = () => {
       if (data.token) {
         localStorage.setItem("token", data.token);
         setLoginMsg("Login successful ✅");
-
-        // ✅ CLEAR INPUTS
-        setLoginData({
-          email: "",
-          password: "",
-        });
+        setLoginData({ email: "", password: "" });
       } else {
         setLoginMsg(data.message || "Login failed ❌");
       }
-
       clearMessage(setLoginMsg);
     } catch (err) {
       setLoginMsg("Server error ❌");
@@ -67,15 +65,13 @@ const LoginSignup = () => {
     }
   };
 
-  /* ================= SIGNUP ================= */
   const handleSignup = async (e) => {
-    if (!emailVerified) {
-  setSignupMsg("Please verify email first ❌");
-  clearMessage(setSignupMsg);
-  return;
-}
-
     e.preventDefault();
+    if (!emailVerified) {
+      setSignupMsg("Please verify email first ❌");
+      clearMessage(setSignupMsg);
+      return;
+    }
     setSignupMsg("");
 
     try {
@@ -89,14 +85,11 @@ const LoginSignup = () => {
 
       if (data.userId) {
         setSignupMsg("Registration successful ✅ Please login");
-
-        // ✅ CLEAR INPUTS
-        setSignupData({
-          username: "",
-          email: "",
-          password: "",
-        });
-
+        setSignupData({ username: "", email: "", password: "" });
+        setEmailVerified(false);
+        setOtp("");
+        setOtpPopup(false);
+        setVerifyMsg("");
         setIsToggled(false);
       } else {
         setSignupMsg(data.message || "Signup failed ❌");
@@ -110,54 +103,136 @@ const LoginSignup = () => {
   };
 
   const sendOtp = async () => {
-  setVerifyMsg("");
+    if (otpTimer > 0) return;
 
-  try {
-    const res = await fetch(`${API_URL}/send-otp`, {
+    if (!signupData.email) {
+      setVerifyMsg("Enter email first ❌");
+      clearMessage(setVerifyMsg);
+      return;
+    }
+
+    setOtpLoading(true);
+    setVerifyMsg("");
+
+    try {
+      const res = await fetch(`${API_URL}/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: signupData.email.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setOtpPopup(true);
+        setOtpTimer(30);
+
+        const interval = setInterval(() => {
+          setOtpTimer((prev) => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        setVerifyMsg(data.message || "OTP failed ❌");
+      }
+    } catch {
+      setVerifyMsg("Server error ❌");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!otp) return;
+
+    setVerifyLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: signupData.email.trim(), otp }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setEmailVerified(true);
+        setOtpPopup(false);
+        setOtp("");
+        setVerifyMsg("Email verified ✅");
+        clearMessage(setVerifyMsg);
+      } else {
+        setVerifyMsg(data.message || "Invalid OTP ❌");
+      }
+    } catch {
+      setVerifyMsg("Server error ❌");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // Forgot Password functions (same as before)
+  const sendForgotOtp = async (e) => {
+    e.preventDefault();
+    const res = await fetch(`${API_URL}/forgot-password/send-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: signupData.email }),
+      body: JSON.stringify({ email: forgotEmail.trim() }),
     });
-
     const data = await res.json();
+    if (data.success) setResetStage(2);
+    else alert(data.message || "Failed ❌");
+  };
 
-    if (data.success) {
-      setOtpPopup(true);
-    } else {
-      setVerifyMsg(data.message || "OTP failed ❌");
-    }
-  } catch {
-    setVerifyMsg("Server error ❌");
-  }
-};
-
-const verifyOtp = async () => {
-  try {
-    const res = await fetch(`${API_URL}/verify-otp`, {
+  const verifyForgotOtp = async () => {
+    const res = await fetch(`${API_URL}/forgot-password/verify-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: signupData.email,
-        otp,
-      }),
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: forgotOtp }),
     });
-
     const data = await res.json();
+    if (data.success) setResetStage(3);
+    else alert("Invalid OTP ❌");
+  };
 
+  const resetPassword = async () => {
+    const res = await fetch(`${API_URL}/forgot-password/reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail.trim(), password: newPassword }),
+    });
+    const data = await res.json();
     if (data.success) {
-      setEmailVerified(true);
-      setOtpPopup(false);
-      setOtp("");
-    } else {
-      alert("Invalid OTP ❌");
+      alert("Password changed ✅");
+      setForgotPopup(false);
+      setResetStage(1);
     }
-  } catch {
-    alert("Server error ❌");
-  }
-};
+  };
 
+  const goToSignup = () => {
+    setIsToggled(true);
+    setSignupData({ username: "", email: "", password: "" });
+    setEmailVerified(false);
+    setOtp("");
+    setOtpPopup(false);
+    setVerifyMsg("");
+    setSignupMsg("");
+  };
 
-
+  const goToLogin = () => {
+    setIsToggled(false);
+    setLoginData({ email: "", password: "" });
+    setLoginMsg("");
+    setEmailVerified(false);
+    setOtp("");
+    setOtpPopup(false);
+    setVerifyMsg("");
+  };
   return (
     <>
       <div className={`auth-wrapper ${isToggled ? "toggled" : ""}`}>
@@ -213,7 +288,12 @@ const verifyOtp = async () => {
 
               <i className="fa-solid fa-lock"></i>
             </div>
-
+            <p
+              style={{ fontSize: "12px", cursor: "pointer", color: "#00d4ff" }}
+              onClick={() => setForgotPopup(true)}
+            >
+              Forgot Password?
+            </p>
             <div className="field-wrapper slide-element">
               <button className="submit-button" type="submit">
                 Login
@@ -226,7 +306,7 @@ const verifyOtp = async () => {
                 <button
                   type="button"
                   className="register-trigger sign-btn"
-                  onClick={() => setIsToggled(true)}
+                  onClick={goToSignup}
                 >
                   Sign Up
                 </button>
@@ -275,28 +355,43 @@ const verifyOtp = async () => {
             </div>
 
             <div className="field-wrapper slide-element verify-wrapper">
-  <input
-    type="email"
-    id="signup-email"
-    required
-    value={signupData.email}
-    onChange={(e) =>
-      setSignupData({ ...signupData, email: e.target.value })
-    }
-  />
+              <input
+                type="email"
+                id="signup-email"
+                required
+                value={signupData.email}
+                onChange={(e) => {
+                  setSignupData({ ...signupData, email: e.target.value });
 
-  <label htmlFor="signup-email">Email</label>
+                  // 🔥 reset verification when email changes
+                  setEmailVerified(false);
+                  setVerifyMsg("");
+                  setOtp("");
+                }}
+              />
 
-  <button
-    type="button"
-    className="verify-btn"
-    onClick={sendOtp}
-    disabled={!signupData.email}
-  >
-    {emailVerified ? "Verified ✅" : "Verify"}
-  </button>
-</div>
+              <label htmlFor="signup-email">Email</label>
 
+              <button
+                type="button"
+                className="verify-btn"
+                onClick={sendOtp}
+                disabled={
+                  !signupData.email ||
+                  emailVerified ||
+                  otpTimer > 0 ||
+                  otpLoading
+                }
+              >
+                {emailVerified
+                  ? "Verified ✅"
+                  : otpLoading
+                  ? "Sending..."
+                  : otpTimer > 0
+                  ? `Resend in ${otpTimer}s`
+                  : "Verify"}
+              </button>
+            </div>
 
             <div className="field-wrapper slide-element">
               <input
@@ -326,7 +421,7 @@ const verifyOtp = async () => {
                 <button
                   type="button"
                   className="login-trigger sign-btn"
-                  onClick={() => setIsToggled(false)}
+                  onClick={goToLogin}
                 >
                   Sign In
                 </button>
@@ -350,26 +445,75 @@ const verifyOtp = async () => {
         </p>
       </div>
       {otpPopup && (
+        <div className="otp-overlay">
+          <div className="otp-box">
+            <h3>Email Verification</h3>
+
+            <input
+              type="text"
+              placeholder="Enter OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+
+            <button onClick={verifyOtp} disabled={verifyLoading}>
+              {verifyLoading ? "Verifying..." : "Verify OTP"}
+            </button>
+
+            <p className="otp-close" onClick={() => setOtpPopup(false)}>
+              Cancel
+            </p>
+          </div>
+        </div>
+      )}
+      {forgotPopup && (
   <div className="otp-overlay">
     <div className="otp-box">
-      <h3>Email Verification</h3>
+      <h3>Reset Password</h3>
 
-      <input
-        type="text"
-        placeholder="Enter OTP"
-        value={otp}
-        onChange={(e) => setOtp(e.target.value)}
-      />
+      {resetStage === 1 && (
+        <>
+          <input
+            placeholder="Enter Email"
+            value={forgotEmail}
+            onChange={(e) => setForgotEmail(e.target.value)}
+          />
+          <button type="button" onClick={sendForgotOtp}>
+  Send OTP
+</button>
 
-      <button onClick={verifyOtp}>Verify OTP</button>
+        </>
+      )}
 
-      <p className="otp-close" onClick={() => setOtpPopup(false)}>
+      {resetStage === 2 && (
+        <>
+          <input
+            placeholder="Enter OTP"
+            value={forgotOtp}
+            onChange={(e) => setForgotOtp(e.target.value)}
+          />
+          <button type="button" onClick={verifyForgotOtp}>Verify OTP</button>
+        </>
+      )}
+
+      {resetStage === 3 && (
+        <>
+          <input  
+            type="password"
+            placeholder="New Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <button type="button" onClick={resetPassword}>Reset Password</button>
+        </>
+      )}
+
+      <p className="otp-close" onClick={() => setForgotPopup(false)}>
         Cancel
       </p>
     </div>
   </div>
 )}
-
     </>
   );
 };
