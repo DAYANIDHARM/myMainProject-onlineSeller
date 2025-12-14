@@ -684,6 +684,30 @@
   color: #00d4ff;
 }
 
+.forgot-wrapper {
+  margin-top: 10px;
+}
+
+.forgot-link {
+  font-size: 12px;
+  cursor: pointer;
+  color: #00d4ff;
+  text-align: right;
+  transition: 0.3s;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+  color: #00b8d4;
+}
+
+.credentials-panel.signin .forgot-wrapper {
+  transition-delay: 2.45s;
+}
+
+.auth-wrapper.toggled .credentials-panel.signin .forgot-wrapper {
+  transition-delay: 0.25s;
+}
 
     #root {
         width: 100%;

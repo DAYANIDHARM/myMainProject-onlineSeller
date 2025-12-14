@@ -33,6 +33,8 @@ const LoginSignup = () => {
   const [forgotOtp, setForgotOtp] = useState("");
   const [resetStage, setResetStage] = useState(1);
   const [newPassword, setNewPassword] = useState("");
+  const [showForgot, setShowForgot] = useState(true);
+
 
   const clearMessage = (setter) => {
     setTimeout(() => setter(""), 3000);
@@ -215,24 +217,33 @@ const LoginSignup = () => {
   };
 
   const goToSignup = () => {
-    setIsToggled(true);
-    setSignupData({ username: "", email: "", password: "" });
-    setEmailVerified(false);
-    setOtp("");
-    setOtpPopup(false);
-    setVerifyMsg("");
-    setSignupMsg("");
-  };
+  setShowForgot(false);     // 🔥 hide immediately
+  setIsToggled(true);
 
-  const goToLogin = () => {
-    setIsToggled(false);
-    setLoginData({ email: "", password: "" });
-    setLoginMsg("");
-    setEmailVerified(false);
-    setOtp("");
-    setOtpPopup(false);
-    setVerifyMsg("");
-  };
+  setSignupData({ username: "", email: "", password: "" });
+  setEmailVerified(false);
+  setOtp("");
+  setOtpPopup(false);
+  setVerifyMsg("");
+  setSignupMsg("");
+};
+
+const goToLogin = () => {
+  setIsToggled(false);
+
+  // 🔥 wait for animation before showing
+  setTimeout(() => {
+    setShowForgot(true);
+  }, 500); // match CSS animation time
+
+  setLoginData({ email: "", password: "" });
+  setLoginMsg("");
+  setEmailVerified(false);
+  setOtp("");
+  setOtpPopup(false);
+  setVerifyMsg("");
+};
+
   return (
     <>
       <div className={`auth-wrapper ${isToggled ? "toggled" : ""}`}>
@@ -288,12 +299,18 @@ const LoginSignup = () => {
 
               <i className="fa-solid fa-lock"></i>
             </div>
-            <p
-              style={{ fontSize: "12px", cursor: "pointer", color: "#00d4ff" }}
-              onClick={() => setForgotPopup(true)}
-            >
-              Forgot Password?
-            </p>
+             <div className="forgot-wrapper slide-element">
+  {showForgot && !isToggled && (
+    <p
+      className="forgot-link"
+      onClick={() => setForgotPopup(true)}
+    >
+      Forgot Password?
+    </p>
+  )}
+</div>
+
+
             <div className="field-wrapper slide-element">
               <button className="submit-button" type="submit">
                 Login
